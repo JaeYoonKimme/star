@@ -2,6 +2,106 @@
 #include<stdlib.h>
 #include<string.h>
 #include<unistd.h>
+#include<limits.h>
+#include<sys/stat.h>
+
+char dst_file[PATH_MAX];
+
+struct _s_header {
+	char f_type;
+	unsigned int path_size;
+	unsigned int data_size;
+} ;
+
+typedef struct _s_header	s_header ;
+typedef struct _s_header * 	s_header_ptr ;
+
+void
+write_file (char * target)
+{
+	struct stat st;
+ 	if(stat(target, &st) == -1){
+                perror("stat error");
+                exit(3);
+        }
+
+	//file
+        if(S_ISREG(st.st_mode)){
+        	FILE * tar = fopen(target,"rb");
+		if(tar == NULL){
+			perror("file open error\n");
+			exit(4);
+		}
+
+		FILE * des = fopen(dst_file,"ab");
+		if(des == NULL){
+			perror("file open error\n");
+			exit(4);
+		}
+
+		s_header_ptr tmp;
+		tmp -> f_type = '0';
+		tmp -> path_size = strlen(target);
+			
+		fseek(tar, 0, SEEK_END);
+		tmp -> data_size = ftell(tar);
+		rewind(tar);
+		
+		//Write header
+		if(fwrite(des,sizeof(s_header),1,(void*)tmp) != sizeof(s_header) ){
+			printf("file write error\n");
+			exit(5);
+		}
+
+		//Write name
+		if(fwrite(target,sizeof(char),tmp->path_size,des) != tmp->path_size){
+			printf("file write error\n");
+			exit(5);
+		}
+
+		//Write data
+		char * buf[1024];
+		size_t len;
+		while(feof(tar) == 0){
+			len =+ fread(buf,1,sizeof(buf),tar);
+			fwrite(buf,1,len,des);
+		}
+		fclose(tar);
+		fclose(des);
+	}
+
+
+        //Directory
+        if(S_ISDIR(st.st_mode)){
+        }
+
+
+
+
+
+
+
+}
+
+
+void
+archive (char * target)
+{
+	struct stat st;
+	if(stat(target, &st) == -1){
+		perror("stat error");
+		exit(3);
+	}
+	//One file
+	if(S_ISREG(st.st_mode)){
+		write_file(target);			
+	}
+	//Directory
+	if(S_ISDIR(st.st_mode)){
+		printf("Archive directory\n");	
+	}
+}
+
 int 
 main (int argc, char ** argv)
 {	
@@ -22,15 +122,15 @@ main (int argc, char ** argv)
 			exit(2);
 		}
 		if(access(argv[3],F_OK) != 0){
-			printf("archive mode : No directory named %s\n",argv[3]);
+			printf("archive mode : No directory or file named %s\n",argv[3]);
 			exit(2);
 		}
 		if(access(argv[3],R_OK) != 0){
 			printf("archive mode : No permission to access %s\n",argv[3]);
 			exit(2);
 		}
-		printf("archive mode\n");
-		//Archive()
+		strcpy(dst_file,argv[2]);
+		archive(argv[3]);
 	}
 	//List mode
 	else if(strcmp(argv[1],"list") == 0){
