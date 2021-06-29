@@ -4,100 +4,151 @@
 #include<unistd.h>
 #include<limits.h>
 #include<sys/stat.h>
+#include<dirent.h>
 
 char dst_file[PATH_MAX];
 
 struct _s_header {
-	char f_type;
+	char file_type;
 	unsigned int path_size;
 	unsigned int data_size;
-	//char[PATH_MAX] path_name;
+	char path_name[PATH_MAX];
 } ;
 
 typedef struct _s_header	s_header ;
 typedef struct _s_header * 	s_header_ptr ;
 
+char *
+path_cat (char * path, char * file)
+{
+	char * new_path = (char*) calloc(sizeof(char),PATH_MAX);
+	strcpy(new_path, path);
+	strcat(new_path, "/");
+	strcat(new_path, file);
+	return new_path;
+}
+
 void
-write_file (char * target)
+write_file (char * target, FILE * dst)
 {
 	struct stat st;
- 	if(stat(target, &st) == -1){
-                perror("stat error");
-                exit(3);
-        }
+	if(stat(target,&st) == -1){
+		perror("stat error\n");
+		exit(7);
+	}
+	
+	s_header tmp;
+	tmp.data_size = st.st_size;
+	tmp.file_type = 1;
+	tmp.path_size = strlen(target);
+	strcpy(tmp.path_name,target);
 
-	//file
-        if(S_ISREG(st.st_mode)){
-        	FILE * tar = fopen(target,"rb");
-		if(tar == NULL){
-			perror("file open error\n");
-			exit(4);
-		}
 
-		FILE * des = fopen(dst_file,"ab");
-		if(des == NULL){
-			perror("file open error\n");
-			exit(4);
-		}
-
-		s_header tmp;
-		tmp.f_type = 0;
-		tmp.path_size = strlen(target);
-			
-		fseek(tar, 0, SEEK_END);
-		tmp.data_size = ftell(tar);
-		rewind(tar);
-
-		
-		
-		//Write header
-		if(fwrite((void*)(&tmp),sizeof(s_header),1,des) != 1 ){
-			printf("file write error\n");
-			exit(5);
-		}
-
-		//Write name
-		if(fwrite(target,sizeof(char),tmp.path_size,des) != tmp.path_size){
-			printf("file write error\n");
-			exit(5);
-		}
-
-		//Write data
-		char * buf[1024];
-		size_t len;
-		while(feof(tar) == 0){
-			len =+ fread(buf,1,sizeof(buf),tar);
-			fwrite(buf,1,len,des);
-		}
-		fclose(tar);
-		fclose(des);
+	if(fwrite(&(tmp.file_type),sizeof(tmp.file_type),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(&(tmp.path_size),sizeof(tmp.path_size),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(&(tmp.data_size),sizeof(tmp.data_size),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(tmp.path_name,tmp.path_size,1,dst) != 1){
+		printf("file write eror\n");
+		exit(5);
 	}
 
+	FILE * f = fopen(target,"rb");
+	if(f == NULL){
+		perror("file open eror\n");
+		exit(4);
+	}
+	char buf[1024];
+	size_t len;
+	while(feof(f) == 0){
+		len = fread(buf,1,sizeof(buf),f);
+		fwrite(buf,1,len,dst);
+	}
+	fclose(f);
 
-        //Directory
-        if(S_ISDIR(st.st_mode)){
-        }
+		
 }
+
+void
+write_dir (char * target, FILE * dst)
+{
+	s_header tmp;
+	tmp.file_type = 0;
+	tmp.path_size = strlen(target);
+	tmp.data_size = 0;
+	strcpy(tmp.path_name, target);
+
+	//write header
+	if(fwrite(&(tmp.file_type),sizeof(tmp.file_type),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(&(tmp.path_size),sizeof(tmp.path_size),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(&(tmp.data_size),sizeof(tmp.data_size),1,dst) != 1){
+		printf("file write error\n");
+		exit(5);
+	}
+	if(fwrite(tmp.path_name,tmp.path_size,1,dst) != 1){
+		printf("file write erorr\n");
+		exit(5);
+	}
+
+	DIR *dp;
+	struct dirent * ep;
+	dp = opendir(target);
+	if(dp == NULL){
+		perror("fail to open dir\n");
+		exit(6);
+	}
+
+	for( ;ep = readdir(dp); ){
+		if(strcmp(ep->d_name,".") == 0){
+			continue;
+		}
+		if(strcmp(ep->d_name,"..") == 0){
+			continue;
+		}
+		if(ep->d_type == DT_DIR){
+			char * newdir;
+			newdir = path_cat(target,ep->d_name);
+			write_dir(newdir, dst);
+			free(newdir);
+		}
+		if(ep->d_type == DT_REG || ep->d_type == DT_LNK){
+			char * newfile;
+			newfile = path_cat(target,ep->d_name);
+			write_file(newfile,dst);
+			free(newfile);
+		}
+	}
+}
+
 
 
 void
 archive (char * target)
 {
-	struct stat st;
-	if(stat(target, &st) == -1){
-		perror("stat error");
-		exit(3);
+	FILE * dst = fopen(dst_file,"w");
+	if(dst == NULL){
+		printf("%s\n",target);
+		perror("file open error\n");
+		exit(5);
 	}
-	//One file
-	if(S_ISREG(st.st_mode)){
-		write_file(target);			
-	}
-	//Directory
-	if(S_ISDIR(st.st_mode)){
-		printf("Archive directory\n");	
-	}
-}
 
+	write_dir(target,dst);
+	fclose(dst);
+}
 void
 list (char * s_file)
 {
@@ -110,7 +161,7 @@ list (char * s_file)
 	int cursor = 0;
 	while(feof(f) == 0){
 		s_header tmp;
-		cursor =+ fread(&tmp,sizeof(s_header),1,f);
+		cursor = cursor + fread(&tmp,sizeof(s_header),1,f);
 		
 		char * name = (char *) malloc(tmp.path_size);
 		cursor =+ fread(name,sizeof(char),tmp.path_size,f);
