@@ -39,22 +39,22 @@ write_file (char * target)
 			exit(4);
 		}
 
-		s_header_ptr tmp;
-		tmp -> f_type = '0';
-		tmp -> path_size = strlen(target);
+		s_header tmp;
+		tmp.f_type = '0';
+		tmp.path_size = strlen(target);
 			
 		fseek(tar, 0, SEEK_END);
-		tmp -> data_size = ftell(tar);
+		tmp.data_size = ftell(tar);
 		rewind(tar);
 		
 		//Write header
-		if(fwrite(des,sizeof(s_header),1,(void*)tmp) != sizeof(s_header) ){
+		if(fwrite((void*)(&tmp),sizeof(s_header),1,des) != 1 ){
 			printf("file write error\n");
 			exit(5);
 		}
 
 		//Write name
-		if(fwrite(target,sizeof(char),tmp->path_size,des) != tmp->path_size){
+		if(fwrite(target,sizeof(char),tmp.path_size,des) != tmp.path_size){
 			printf("file write error\n");
 			exit(5);
 		}
@@ -74,13 +74,6 @@ write_file (char * target)
         //Directory
         if(S_ISDIR(st.st_mode)){
         }
-
-
-
-
-
-
-
 }
 
 
@@ -100,6 +93,12 @@ archive (char * target)
 	if(S_ISDIR(st.st_mode)){
 		printf("Archive directory\n");	
 	}
+}
+
+void
+list (char * s_file)
+{
+
 }
 
 int 
