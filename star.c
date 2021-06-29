@@ -11,6 +11,7 @@ struct _s_header {
 	char f_type;
 	unsigned int path_size;
 	unsigned int data_size;
+	//char[PATH_MAX] path_name;
 } ;
 
 typedef struct _s_header	s_header ;
@@ -40,12 +41,14 @@ write_file (char * target)
 		}
 
 		s_header tmp;
-		tmp.f_type = '0';
+		tmp.f_type = 0;
 		tmp.path_size = strlen(target);
 			
 		fseek(tar, 0, SEEK_END);
 		tmp.data_size = ftell(tar);
 		rewind(tar);
+
+		
 		
 		//Write header
 		if(fwrite((void*)(&tmp),sizeof(s_header),1,des) != 1 ){
@@ -98,7 +101,23 @@ archive (char * target)
 void
 list (char * s_file)
 {
-
+	FILE * f = fopen(s_file,"rb");
+	if(f == NULL){
+		perror("In function list(): file open error\n");
+		exit(5);
+	}
+	
+	int cursor = 0;
+	while(feof(f) == 0){
+		s_header tmp;
+		cursor =+ fread(&tmp,sizeof(s_header),1,f);
+		
+		char * name = (char *) malloc(tmp.path_size);
+		cursor =+ fread(name,sizeof(char),tmp.path_size,f);
+		printf("%s\n",name);
+		//......
+	}
+	fclose(f);
 }
 
 int 
@@ -145,8 +164,7 @@ main (int argc, char ** argv)
 			printf("list mode : No permission to access %s\n",argv[2]);
 			exit(2);
 		}
-		printf("list mode\n");
-		//List()
+		list(argv[2]);
 	}
 	//Extract mode
 	else if(strcmp(argv[1],"extract") == 0){
