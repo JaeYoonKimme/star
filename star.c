@@ -31,6 +31,7 @@ path_cat (char * path, char * file)
 void
 write_file (char * target, FILE * dst)
 {
+	printf("file name : %s\n",target);
 	struct stat st;
 	if(stat(target,&st) == -1){
 		perror("stat error\n");
@@ -38,7 +39,7 @@ write_file (char * target, FILE * dst)
 	}
 	
 	s_header tmp;
-	tmp.data_size = st.st_size;
+	tmp.data_size = (unsigned int)st.st_size;
 	tmp.file_type = 1;
 	tmp.path_size = strlen(target);
 	strcpy(tmp.path_name,target);
@@ -149,6 +150,7 @@ archive (char * target)
 	write_dir(target,dst);
 	fclose(dst);
 }
+
 void
 list (char * s_file)
 {
@@ -160,15 +162,45 @@ list (char * s_file)
 	
 	int cursor = 0;
 	while(feof(f) == 0){
+		//Fix here
 		s_header tmp;
-		cursor = cursor + fread(&tmp,sizeof(s_header),1,f);
 		
-		char * name = (char *) malloc(tmp.path_size);
-		cursor =+ fread(name,sizeof(char),tmp.path_size,f);
-		printf("%s\n",name);
-		//......
+		if(fread(&(tmp.file_type),sizeof(tmp.file_type),1,f) != 1){
+			printf("file read error1\n");
+			exit(6);
+		}
+		if(fread(&(tmp.path_size),sizeof(tmp.path_size),1,f) != 1){
+			printf("file read error2\n");
+			exit(6);
+		}
+		if(fread(&(tmp.data_size),sizeof(tmp.data_size),1,f) != 1){
+			printf("file read error3\n");
+			exit(6);
+		}
+		char * name = (char *) malloc(tmp.path_size+1);
+		if(fread(name,1,tmp.path_size,f) != tmp.path_size){
+			printf("file read error4\n");
+			exit(6);
+		}
+		strcpy(tmp.path_name, name);
+		printf("%s\n",tmp.path_name);
+		//if( tmp.file_type == 0){
+		//	printf("This is directory\n");
+		//}
+		//if( tmp.file_type == 1){
+		//	printf("This is regular file\n");
+		//}
+		//printf("path size : %d\n",tmp.path_size);
+		//printf("data size : %d\n",tmp.data_size);
+
+		fseek(f,tmp.data_size,SEEK_CUR);
 	}
 	fclose(f);
+}
+
+void
+extract (char * file){
+	
 }
 
 int 
